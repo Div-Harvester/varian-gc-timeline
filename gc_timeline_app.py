@@ -11,8 +11,6 @@ def find_file(name):
     candidates = [
         SCRIPT_DIR / name,
         SCRIPT_DIR / "data" / name,
-        pathlib.Path("/workspace/attachments") / name,
-        pathlib.Path("/workspace/artifacts") / name,
     ]
     for p in candidates:
         if p.exists():
@@ -20,11 +18,10 @@ def find_file(name):
     raise FileNotFoundError(f"Could not find {name}. Place it next to this script.")
 
 print("Loading GC data...")
-gc_path = find_file("VarianGCData_Thru_102126_1615.xlsx")
+gc_path = find_file("gc_data.csv")
 print(f"  Using GC file: {gc_path}")
-gc = pd.read_excel(gc_path)
+gc = pd.read_csv(gc_path, parse_dates=['Date'])
 gc = gc.dropna(subset=['Date', 'Compound'])
-gc['Date'] = pd.to_datetime(gc['Date'])
 gc = gc[gc['Compound'].isin(['111-TCA', 'PCE', 'TCE'])].copy()
 gc['DateOnly'] = gc['Date'].dt.normalize()
 
