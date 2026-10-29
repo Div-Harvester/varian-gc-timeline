@@ -24,21 +24,16 @@ gc = pd.read_csv(gc_path, parse_dates=['Date'])
 gc = gc.dropna(subset=['Date', 'Compound'])
 gc = gc[gc['Compound'].isin(['111-TCA', 'PCE', 'TCE'])].copy()
 gc['DateOnly'] = gc['Date'].dt.normalize()
+gc['Exceeded'] = gc['Exceeded?'] == 'Yes'
+
+# Full-resolution data (every sample)
+locations = sorted(gc['Location Details'].unique())
+compounds = ['TCE', 'PCE', '111-TCA']
 
 weather_path = find_file("beverly_weather.csv")
 print(f"  Using weather file: {weather_path}")
 weather = pd.read_csv(weather_path, parse_dates=['time'])
 weather = weather.set_index('time').sort_index()
-
-daily = (gc.groupby(['DateOnly', 'Location Details', 'Compound'])
-           .agg({'Final Concentration (ug/m3)': 'max',
-                 'Exceeded?': lambda x: (x == 'Yes').any()})
-           .reset_index())
-daily['Date'] = daily['DateOnly']
-daily['Exceeded'] = daily['Exceeded?']
-
-locations = sorted(daily['Location Details'].unique())
-compounds = ['TCE', 'PCE', '111-TCA']
 weather_options = [
     {'label': 'Avg Temperature (°C)', 'value': 'tavg'},
     {'label': 'Min Temperature (°C)', 'value': 'tmin'},
@@ -95,7 +90,7 @@ app.index_string = '''
 app.layout = html.Div([
     html.H2("Varian GC Data & Weather Conditions",
             style={'textAlign': 'center', 'marginBottom': '5px'}),
-    html.P("Select one or more locations (checkboxes). Compound and weather update independently. Red X = Action Level Exceedance.",
+    html.P("Select one or more locations (checkboxes). Shows every sample (not daily max). Compound and weather update independently. Red X = Action Level Exceedance.",
            style={'textAlign': 'center', 'color': '#555', 'marginTop': '0'}),
     html.P("◄ Drag the red handles on the bottom timeline to zoom ◄",
            style={'textAlign': 'center', 'color': '#e74c3c', 'fontWeight': 'bold', 'margin': '4px 0 10px 0', 'fontSize': '14px'}),
@@ -160,10 +155,10 @@ def update_figure(selected_locations, selected_compound, weather_col):
 
     fig = go.Figure()
 
-    # GC traces for selected locations + compound
+    # GC traces for selected locations + compound (every sample)
     for loc in selected_locations:
-        mask = (daily['Location Details'] == loc) & (daily['Compound'] == selected_compound)
-        d = daily[mask].sort_values('Date')
+        mask = (gc['Location Details'] == loc) & (gc['Compound'] == selected_compound)
+        d = gc[mask].sort_values('Date')
         if len(d) == 0:
             continue
 
@@ -172,9 +167,9 @@ def update_figure(selected_locations, selected_compound, weather_col):
             y=d['Final Concentration (ug/m3)'],
             mode='lines+markers',
             name=f'{loc} - {selected_compound}',
-            line=dict(width=1.6),
-            marker=dict(size=4),
-            hovertemplate='%{x|%Y-%m-%d}<br>%{y:.2f} µg/m³<extra>' + loc + '</extra>'
+            line=dict(width=1.2),
+            marker=dict(size=3),
+            hovertemplate='%{x|%Y-%m-%d %H:%M}<br>%{y:.2f} µg/m³<extra>' + loc + '</extra>'
         ))
 
         # Exceedances
@@ -185,8 +180,8 @@ def update_figure(selected_locations, selected_compound, weather_col):
                 y=exceed['Final Concentration (ug/m3)'],
                 mode='markers',
                 name=f'Exceedance ({loc})',
-                marker=dict(size=11, color='red', symbol='x', line=dict(width=1.5, color='darkred')),
-                hovertemplate='EXCEEDED<br>%{x|%Y-%m-%d}<br>%{y:.2f} µg/m³<extra>' + loc + '</extra>',
+                marker=dict(size=10, color='red', symbol='x', line=dict(width=1.5, color='darkred')),
+                hovertemplate='EXCEEDED<br>%{x|%Y-%m-%d %H:%M}<br>%{y:.2f} µg/m³<extra>' + loc + '</extra>',
                 showlegend=True
             ))
 
